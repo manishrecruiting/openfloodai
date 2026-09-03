@@ -52,3 +52,14 @@ def test_stream_config_defaults() -> None:
     assert config.timeout_seconds == 10.0
     assert config.max_retries == 3
     assert config.target_fps == 1.0
+
+
+def test_stream_config_rejects_file_scheme() -> None:
+    with pytest.raises(StreamError, match="Stream URL scheme must be one of"):
+        StreamConfig(url="file:///dev/video0")
+
+
+def test_stream_config_accepts_valid_schemes() -> None:
+    for scheme in ("rtsp", "rtsps", "http", "https", "rtmp"):
+        config = StreamConfig(url=f"{scheme}://example.com/stream")
+        assert config.url.startswith(scheme)

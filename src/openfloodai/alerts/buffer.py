@@ -61,7 +61,6 @@ class BufferedAlert:
     """A single alert waiting for delivery."""
 
     webhook_url: str
-    webhook_secret: str
     site_id: str
     camera_id: str
     risk_state: str
@@ -76,7 +75,7 @@ def create_buffer(config: BufferConfig | None = None) -> tuple[BufferConfig, Buf
     """Initialize the alert buffer, creating the buffer directory."""
 
     cfg = config or BufferConfig()
-    cfg.buffer_dir.mkdir(parents=True, exist_ok=True)
+    cfg.buffer_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     state = BufferState()
     state.buffered_count = _count_pending(cfg)
     return cfg, state
@@ -106,7 +105,6 @@ def buffer_alert(
 
     alert = BufferedAlert(
         webhook_url=webhook.url,
-        webhook_secret=webhook.secret,
         site_id=site_id,
         camera_id=camera_id,
         risk_state=risk_state,
@@ -121,7 +119,6 @@ def buffer_alert(
 
     data = {
         "webhook_url": alert.webhook_url,
-        "webhook_secret": alert.webhook_secret,
         "site_id": alert.site_id,
         "camera_id": alert.camera_id,
         "risk_state": alert.risk_state,
@@ -149,14 +146,20 @@ def buffer_alert(
 def flush_buffer(
     config: BufferConfig,
     state: BufferState,
+    webhook_lookup: dict[str, WebhookConfig] | None = None,
 ) -> int:
     """Try to deliver all buffered alerts.
+
+    *webhook_lookup* maps webhook URLs to their full config (including
+    the secret).  This avoids storing secrets on disk -- the buffered
+    file only keeps the URL, and the secret is resolved at flush time.
 
     Returns the number of alerts successfully delivered.
     """
 
     state.last_flush_attempt = time.monotonic()
     delivered = 0
+    lookup = webhook_lookup or {}
 
     pending = sorted(config.buffer_dir.glob("alert_*.json"))
     batch = pending[: config.flush_batch_size]
@@ -182,10 +185,8 @@ def flush_buffer(
             state.dropped_count += 1
             continue
 
-        webhook = WebhookConfig(
-            url=str(data.get("webhook_url", "")),
-            secret=str(data.get("webhook_secret", "")),
-        )
+        url = str(data.get("webhook_url", ""))
+        webhook = lookup.get(url, WebhookConfig(url=url))
 
         result = send_alert(
             webhook,

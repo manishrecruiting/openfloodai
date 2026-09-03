@@ -63,3 +63,13 @@ def test_format_alert_message_with_ratio() -> None:
 def test_webhook_config_with_secret() -> None:
     config = WebhookConfig(url="https://example.com/hook", secret="s3cret")
     assert config.secret == "s3cret"
+
+
+def test_webhook_config_rejects_file_scheme() -> None:
+    with pytest.raises(WebhookError, match="scheme must be http or https"):
+        WebhookConfig(url="file:///etc/passwd")
+
+
+def test_webhook_config_rejects_ftp_scheme() -> None:
+    with pytest.raises(WebhookError, match="scheme must be http or https"):
+        WebhookConfig(url="ftp://example.com/data")

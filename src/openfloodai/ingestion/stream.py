@@ -11,11 +11,14 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from urllib.parse import urlparse
 
 import cv2
 import numpy as np
 
 from openfloodai.common import FrameArray
+
+_ALLOWED_STREAM_SCHEMES = frozenset({"rtsp", "rtsps", "http", "https", "rtmp"})
 
 
 class StreamError(RuntimeError):
@@ -35,6 +38,12 @@ class StreamConfig:
     def __post_init__(self) -> None:
         if not self.url:
             raise StreamError("Stream URL must not be empty")
+        parsed = urlparse(self.url)
+        if parsed.scheme not in _ALLOWED_STREAM_SCHEMES:
+            raise StreamError(
+                f"Stream URL scheme must be one of {sorted(_ALLOWED_STREAM_SCHEMES)}, "
+                f"got {parsed.scheme!r}"
+            )
         if self.timeout_seconds <= 0:
             raise StreamError("timeout_seconds must be positive")
         if self.max_retries < 0:

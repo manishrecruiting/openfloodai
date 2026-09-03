@@ -12,6 +12,9 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from urllib.parse import urlparse
+
+_ALLOWED_WEBHOOK_SCHEMES = frozenset({"https", "http"})
 
 
 class WebhookError(RuntimeError):
@@ -29,6 +32,9 @@ class WebhookConfig:
     def __post_init__(self) -> None:
         if not self.url:
             raise WebhookError("Webhook URL must not be empty")
+        parsed = urlparse(self.url)
+        if parsed.scheme not in _ALLOWED_WEBHOOK_SCHEMES:
+            raise WebhookError(f"Webhook URL scheme must be http or https, got {parsed.scheme!r}")
         if self.timeout_seconds <= 0:
             raise WebhookError("timeout_seconds must be positive")
 
