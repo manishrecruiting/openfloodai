@@ -162,6 +162,8 @@ def stream_health_record(
         reason_codes = ["INPUT_UNKNOWN"]
         summary = f"Stream disconnected: {state.last_error}"
 
+    safe_url = _strip_userinfo(config.url)
+
     return {
         "contract_version": "v1",
         "record_type": "camera_health_output",
@@ -172,7 +174,17 @@ def stream_health_record(
         "is_usable": state.is_connected,
         "reason_codes": reason_codes,
         "human_summary": summary,
-        "stream_url": config.url,
+        "stream_url": safe_url,
         "total_frames_read": state.total_frames_read,
         "consecutive_failures": state.consecutive_failures,
     }
+
+
+def _strip_userinfo(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.username or parsed.password:
+        netloc = parsed.hostname or ""
+        if parsed.port:
+            netloc = f"{netloc}:{parsed.port}"
+        return parsed._replace(netloc=netloc).geturl()
+    return url

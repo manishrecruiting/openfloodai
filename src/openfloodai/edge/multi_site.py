@@ -38,6 +38,7 @@ class SiteThread:
     thread: threading.Thread
     config: MonitorConfig
     state: MonitorState
+    stop_event: threading.Event = field(default_factory=threading.Event)
 
 
 def run_multi_site(multi_config: MultiSiteConfig) -> dict[str, SiteThread]:
@@ -65,9 +66,11 @@ def run_multi_site(multi_config: MultiSiteConfig) -> dict[str, SiteThread]:
         )
         state = create_monitor(config)
 
+        stop_event = threading.Event()
+
         thread = threading.Thread(
             target=_run_site_safe,
-            args=(config, state),
+            args=(config, state, stop_event),
             name=f"monitor-{site.site_id}",
             daemon=True,
         )
@@ -77,6 +80,7 @@ def run_multi_site(multi_config: MultiSiteConfig) -> dict[str, SiteThread]:
             thread=thread,
             config=config,
             state=state,
+            stop_event=stop_event,
         )
 
     if not site_threads:
@@ -95,6 +99,7 @@ def run_multi_site(multi_config: MultiSiteConfig) -> dict[str, SiteThread]:
     except KeyboardInterrupt:
         logger.info("Stopping all monitors...")
         for st in site_threads.values():
+            st.stop_event.set()
             st.state.running = False
         for st in site_threads.values():
             st.thread.join(timeout=5.0)
@@ -102,10 +107,12 @@ def run_multi_site(multi_config: MultiSiteConfig) -> dict[str, SiteThread]:
     return site_threads
 
 
-def _run_site_safe(config: MonitorConfig, state: MonitorState) -> None:
+def _run_site_safe(config: MonitorConfig, state: MonitorState, stop_event: threading.Event) -> None:
     """Run a single site monitor, catching exceptions."""
 
     try:
         run_monitor(config, state)
     except Exception:
         logger.exception("Monitor for %s crashed", config.site.site_id)
+    finally:
+        stop_event.set()

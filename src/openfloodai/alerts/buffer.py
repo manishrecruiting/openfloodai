@@ -114,7 +114,8 @@ def buffer_alert(
         extra=extra or {},
     )
 
-    filename = f"alert_{int(time.time() * 1000)}_{site_id}.json"
+    safe_site_id = _sanitize_filename_part(site_id)
+    filename = f"alert_{int(time.time() * 1000)}_{safe_site_id}.json"
     filepath = config.buffer_dir / filename
 
     data = {
@@ -186,6 +187,9 @@ def flush_buffer(
             continue
 
         url = str(data.get("webhook_url", ""))
+        if lookup and url not in lookup:
+            logger.warning("Buffered alert URL %s not in known webhooks, skipping", filepath.name)
+            continue
         webhook = lookup.get(url, WebhookConfig(url=url))
 
         result = send_alert(
@@ -238,6 +242,13 @@ def buffer_stats(config: BufferConfig, state: BufferState) -> dict[str, object]:
         "last_flush_delivered": state.last_flush_delivered,
         "buffer_dir": str(config.buffer_dir),
     }
+
+
+def _sanitize_filename_part(value: str) -> str:
+    import re
+
+    sanitized = re.sub(r"[^a-zA-Z0-9_\-]", "_", value)
+    return sanitized[:64] or "unknown"
 
 
 def _count_pending(config: BufferConfig) -> int:

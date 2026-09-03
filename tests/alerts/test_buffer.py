@@ -6,6 +6,7 @@ from pathlib import Path
 
 from openfloodai.alerts.buffer import (
     BufferConfig,
+    _sanitize_filename_part,
     buffer_alert,
     buffer_stats,
     create_buffer,
@@ -139,6 +140,44 @@ def test_flush_drops_after_max_retries(tmp_path: Path) -> None:
     flush_buffer(config, state)
     assert not filepath.exists()
     assert state.dropped_count == 1
+
+
+def test_sanitize_filename_strips_traversal() -> None:
+    assert "/" not in _sanitize_filename_part("../../etc/passwd")
+    assert ".." not in _sanitize_filename_part("../../etc/passwd")
+
+
+def test_sanitize_filename_preserves_safe_chars() -> None:
+    assert _sanitize_filename_part("koshi-chatara") == "koshi-chatara"
+    assert _sanitize_filename_part("site_01") == "site_01"
+
+
+def test_sanitize_filename_limits_length() -> None:
+    long_name = "a" * 100
+    assert len(_sanitize_filename_part(long_name)) <= 64
+
+
+def test_sanitize_filename_empty() -> None:
+    assert _sanitize_filename_part("") == "unknown"
+
+
+def test_flush_skips_unknown_webhook_url(tmp_path: Path) -> None:
+    config, state = create_buffer(BufferConfig(buffer_dir=tmp_path / "alerts"))
+    buffer_alert(
+        config,
+        state,
+        webhook=_webhook(),
+        site_id="site-1",
+        camera_id="cam",
+        risk_state="WATCH",
+        previous_risk_state="NORMAL",
+        reason="test",
+        timestamp="2024-09-15T12:00:00Z",
+    )
+    known = {"https://other.example.com/hook": WebhookConfig(url="https://other.example.com/hook")}
+    delivered = flush_buffer(config, state, webhook_lookup=known)
+    assert delivered == 0
+    assert len(list(config.buffer_dir.glob("alert_*.json"))) == 1
 
 
 def test_flush_removes_corrupt_files(tmp_path: Path) -> None:

@@ -7,7 +7,9 @@ or custom dashboards used by flood monitoring operators.
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import socket
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -15,6 +17,8 @@ from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 _ALLOWED_WEBHOOK_SCHEMES = frozenset({"https", "http"})
+
+_MAX_RESPONSE_BYTES = 10 * 1024 * 1024
 
 
 class WebhookError(RuntimeError):
@@ -69,12 +73,15 @@ def send_alert(
     if extra:
         payload["extra"] = extra
 
+    _check_ssrf(config.url)
+
     body = json.dumps(payload).encode("utf-8")
     headers: dict[str, str] = {
         "Content-Type": "application/json",
         "User-Agent": "OpenFloodAI/0.1.0",
     }
-    if config.secret:
+    parsed_url = urlparse(config.url)
+    if config.secret and parsed_url.scheme == "https":
         headers["X-OpenFloodAI-Secret"] = config.secret
 
     request = urllib.request.Request(
@@ -87,7 +94,7 @@ def send_alert(
     try:
         with urllib.request.urlopen(request, timeout=config.timeout_seconds) as resp:
             status_code = resp.status
-            response_body = resp.read().decode("utf-8", errors="replace")[:500]
+            response_body = resp.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace")[:500]
     except urllib.error.HTTPError as exc:
         return _delivery_record(
             config=config,
@@ -160,6 +167,23 @@ def _risk_icon(risk_state: str) -> str:
         "UNKNOWN": "[UNKNOWN]",
     }
     return icons.get(risk_state, "[ALERT]")
+
+
+def _check_ssrf(url: str) -> None:
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        raise WebhookError("Webhook URL has no hostname")
+    try:
+        infos = socket.getaddrinfo(hostname, parsed.port or 443, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        raise WebhookError(f"Cannot resolve webhook hostname {hostname!r}: {exc}") from exc
+    for _family, _type, _proto, _canonname, sockaddr in infos:
+        addr = ipaddress.ip_address(sockaddr[0])
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+            raise WebhookError(
+                f"Webhook URL resolves to non-public address {addr} (hostname {hostname!r})"
+            )
 
 
 def _delivery_record(

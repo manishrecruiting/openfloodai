@@ -9,12 +9,17 @@ services:
       - alerts-data:/data/alerts
     environment:
       - PYTHONUNBUFFERED=1
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
     command:
       - monitor
       - --config=/data/config/sites.json
       - --site=koshi-chatara
       - --stream=${KOSHI_STREAM_URL:-rtsp://camera-koshi:554/stream}
-      - --webhook=${ALERT_WEBHOOK_URL:-http://localhost:8080/webhook}
+      - --webhook=${ALERT_WEBHOOK_URL:-https://localhost:8443/webhook}
 
   monitor-narayani:
     build: .
@@ -24,12 +29,17 @@ services:
       - alerts-data:/data/alerts
     environment:
       - PYTHONUNBUFFERED=1
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
     command:
       - monitor
       - --config=/data/config/sites.json
       - --site=narayani-narayangarh
       - --stream=${NARAYANI_STREAM_URL:-rtsp://camera-narayani:554/stream}
-      - --webhook=${ALERT_WEBHOOK_URL:-http://localhost:8080/webhook}
+      - --webhook=${ALERT_WEBHOOK_URL:-https://localhost:8443/webhook}
 
 volumes:
   alerts-data:

@@ -257,7 +257,7 @@ def _post_json(
 
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            response_body = response.read()
+            response_body = response.read(10 * 1024 * 1024)
     except urllib.error.HTTPError as exc:
         raise ReliefWebError(f"ReliefWeb API returned HTTP {exc.code}: {exc.reason}") from exc
     except urllib.error.URLError as exc:

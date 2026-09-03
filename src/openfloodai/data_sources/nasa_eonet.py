@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from uuid import uuid4
 
@@ -52,7 +53,9 @@ def fetch_flood_events(
         raise NASAEONETError("days_back must be at least 1")
 
     categories = ",".join(sorted(_RELEVANT_CATEGORIES))
-    params = f"category={categories}&status={status}&days={days_back}&limit=50"
+    params = urllib.parse.urlencode(
+        {"category": categories, "status": status, "days": days_back, "limit": 50}
+    )
     data = _fetch_json(f"{_BASE_URL}?{params}", timeout=timeout)
 
     events = data.get("events")
@@ -175,7 +178,7 @@ def _fetch_json(url: str, *, timeout: float) -> dict[str, object]:
     request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = response.read()
+            body = response.read(10 * 1024 * 1024)
     except urllib.error.HTTPError as exc:
         raise NASAEONETError(f"NASA EONET API returned HTTP {exc.code}: {exc.reason}") from exc
     except urllib.error.URLError as exc:

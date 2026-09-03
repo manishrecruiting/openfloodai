@@ -144,7 +144,7 @@ def _fetch_json(url: str, *, timeout: float) -> dict[str, object]:
     request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = response.read()
+            body = response.read(10 * 1024 * 1024)
     except urllib.error.HTTPError as exc:
         msg = f"USGS Earthquake API returned HTTP {exc.code}: {exc.reason}"
         raise USGSEarthquakeError(msg) from exc

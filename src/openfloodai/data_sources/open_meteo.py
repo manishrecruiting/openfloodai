@@ -151,7 +151,7 @@ def _fetch_json(
 
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = response.read()
+            body = response.read(10 * 1024 * 1024)
     except urllib.error.HTTPError as exc:
         raise OpenMeteoError(f"Open-Meteo API returned HTTP {exc.code}: {exc.reason}") from exc
     except urllib.error.URLError as exc:

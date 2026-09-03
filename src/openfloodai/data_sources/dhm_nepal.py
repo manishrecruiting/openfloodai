@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import urllib.error
+import urllib.parse
 import urllib.request
 from uuid import uuid4
 
@@ -73,7 +74,7 @@ def fetch_station_data(
     if not station_id.strip():
         raise DHMNepalError("station_id must not be empty")
 
-    url = f"{_STATION_URL}/{station_id}"
+    url = f"{_STATION_URL}/{urllib.parse.quote(station_id, safe='')}"
     data = _fetch_json(url, timeout=timeout)
 
     if isinstance(data, dict):
@@ -205,7 +206,7 @@ def _fetch_json(url: str, *, timeout: float) -> object:
     request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = response.read()
+            body = response.read(10 * 1024 * 1024)
     except urllib.error.HTTPError as exc:
         raise DHMNepalError(f"DHM API returned HTTP {exc.code}: {exc.reason}") from exc
     except urllib.error.URLError as exc:

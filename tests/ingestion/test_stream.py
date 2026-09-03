@@ -6,6 +6,7 @@ from openfloodai.ingestion.stream import (
     StreamConfig,
     StreamError,
     StreamState,
+    _strip_userinfo,
     stream_health_record,
 )
 
@@ -63,3 +64,22 @@ def test_stream_config_accepts_valid_schemes() -> None:
     for scheme in ("rtsp", "rtsps", "http", "https", "rtmp"):
         config = StreamConfig(url=f"{scheme}://example.com/stream")
         assert config.url.startswith(scheme)
+
+
+def test_strip_userinfo_removes_credentials() -> None:
+    assert _strip_userinfo("rtsp://admin:password@camera.local:554/stream") == (
+        "rtsp://camera.local:554/stream"
+    )
+
+
+def test_strip_userinfo_preserves_clean_url() -> None:
+    url = "rtsp://camera.local:554/stream"
+    assert _strip_userinfo(url) == url
+
+
+def test_health_record_strips_credentials() -> None:
+    config = StreamConfig(url="rtsp://admin:secret@camera.local:554/stream")
+    state = StreamState()
+    record = stream_health_record(state, config, "site1", "cam1")
+    assert "admin" not in str(record["stream_url"])
+    assert "secret" not in str(record["stream_url"])

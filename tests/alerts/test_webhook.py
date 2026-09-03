@@ -5,6 +5,7 @@ import pytest
 from openfloodai.alerts.webhook import (
     WebhookConfig,
     WebhookError,
+    _check_ssrf,
     format_alert_message,
     should_alert,
 )
@@ -73,3 +74,23 @@ def test_webhook_config_rejects_file_scheme() -> None:
 def test_webhook_config_rejects_ftp_scheme() -> None:
     with pytest.raises(WebhookError, match="scheme must be http or https"):
         WebhookConfig(url="ftp://example.com/data")
+
+
+def test_ssrf_rejects_localhost() -> None:
+    with pytest.raises(WebhookError, match="non-public address"):
+        _check_ssrf("https://localhost/hook")
+
+
+def test_ssrf_rejects_private_ip() -> None:
+    with pytest.raises(WebhookError, match="non-public address"):
+        _check_ssrf("https://192.168.1.1/hook")
+
+
+def test_ssrf_rejects_loopback() -> None:
+    with pytest.raises(WebhookError, match="non-public address"):
+        _check_ssrf("https://127.0.0.1/hook")
+
+
+def test_ssrf_rejects_no_hostname() -> None:
+    with pytest.raises(WebhookError, match="no hostname"):
+        _check_ssrf("https:///hook")

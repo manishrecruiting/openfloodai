@@ -185,7 +185,7 @@ def _fetch_json(url: str, *, timeout: float) -> dict[str, Any]:
     request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = response.read()
+            body = response.read(10 * 1024 * 1024)
     except urllib.error.HTTPError as exc:
         raise USGSDataError(f"USGS API returned HTTP {exc.code}: {exc.reason}") from exc
     except urllib.error.URLError as exc:
